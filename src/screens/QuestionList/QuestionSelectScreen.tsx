@@ -1,12 +1,12 @@
 import { Text, View } from "react-native";
 
-const QuestionList = () => {
+const QuestionSelectScreen = () => {
 
     return (
         <View>
-            <Text>QuestionList</Text>
+            <Text>QuestionSelectScreen</Text>
         </View>
     )
 }
 
-export default QuestionList;
+export default QuestionSelectScreen;

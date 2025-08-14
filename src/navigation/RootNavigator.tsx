@@ -5,14 +5,14 @@ import MainStack from '@navigation/MainStack';
 import { store } from '@stores/store';
 
 const RootNavigator = () => {
-    useEffect(() => {
-        console.log(store.getState());
-    }, [])
+  useEffect(() => {
+    console.log(store.getState());
+  }, [])
 
-    const isLoggedIn = useAppSelector(state => state.auth.isLoggedIn);
-    // const isLoggedIn = false;
-  
-    return isLoggedIn ? <MainStack /> : <AuthStack />;
-  };
+  const isLoggedIn = useAppSelector(state => state.auth.isLoggedIn);
+  // const isLoggedIn = false;
+
+  return isLoggedIn ? <MainStack /> : <AuthStack />;
+};
   
 export default RootNavigator;

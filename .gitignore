@@ -204,3 +204,10 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# React Native
+node_modules/
+npm-debug.log
+.env
+*.keystore
+*.jks

@@ -20,16 +20,18 @@ export const fscale = (fontSize: number) =>
   (SCREEN_WIDTH / guideLineBaseWidth) * fontSize;
 
 export const TypographyScale = {
+    appTitle: fscale(50),     // App Title
     heading: fscale(25),      // 주요 제목
-    title: fscale(20),        // 중간 제목
+    title: fscale(23),        // 중간 제목
     body: fscale(16),         // 일반 본문
     caption: fscale(14),      // 보조 설명
     footnote: fscale(12),     // 가장 작은 글자
   };
   
   export const LineHeights = {
+    appTitle: vscale(55),
     heading: vscale(30),
-    title: vscale(25),
+    title: vscale(28),
     body: vscale(21),
     caption: vscale(19),
     footnote: vscale(17),

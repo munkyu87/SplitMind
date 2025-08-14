@@ -8,22 +8,23 @@ import { useColorScheme } from 'react-native';
 import { themes, ThemeMode } from '@themes/theme';
 import { store } from '@stores/store';
 import RootNavigator from '@navigation/RootNavigator';
+import { CustomThemeProvider } from '@themes/ThemeProvider';
 
 const AppProvider = () => {
-  const scheme = useColorScheme(); // 'light' | 'dark' | null
+  // const scheme = useColorScheme(); // 'light' | 'dark' | null
 
-  const selectedMode: ThemeMode = 'dim';
+  const selectedMode: ThemeMode = 'star';
 //   const selectedTheme =
 //     scheme === 'dark' ? darkTheme : scheme === 'light' ? lightTheme : blueTheme;
 
   return (
     <SafeAreaProvider>
       <ReduxProvider store={store}>
-        <ThemeProvider theme={themes[selectedMode]}>
+        <CustomThemeProvider>
           <NavigationContainer>
             <RootNavigator />
           </NavigationContainer>
-        </ThemeProvider>
+        </CustomThemeProvider>
       </ReduxProvider>
     </SafeAreaProvider>
   );
