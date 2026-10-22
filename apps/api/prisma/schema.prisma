@@ -1,0 +1,246 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AuthProvider {
+  kakao
+  naver
+  google
+}
+
+enum QuestionSource {
+  seed
+  user
+  ai
+}
+
+enum QuestionStatus {
+  published
+  archived
+}
+
+enum SuggestionStatus {
+  pending
+  approved
+  rejected
+}
+
+enum SuggestionOrigin {
+  user
+  ai
+}
+
+enum ReviewAction {
+  approved
+  rejected
+}
+
+model User {
+  id                 String              @id @default(uuid()) @db.Uuid
+  provider           AuthProvider
+  providerId         String              @map("provider_id")
+  nickname           String?             @db.VarChar(50)
+  isAdult            Boolean             @default(false) @map("is_adult")
+  isAdmin            Boolean             @default(false) @map("is_admin")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  sessions           Session[]
+  answers            UserAnswer[]
+  comments           Comment[]
+  commentLikes       CommentLike[]
+  commentReports     CommentReport[]
+  ratings            QuestionRating[]
+  suggestions        SuggestedQuestion[] @relation("SuggestionAuthor")
+  reviewedSuggestions SuggestedQuestion[] @relation("SuggestionReviewer")
+  reviewLogs         QuestionReviewLog[]
+  authoredQuestions  Question[]
+
+  @@unique([provider, providerId])
+  @@map("users")
+}
+
+model Session {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  refreshHash String    @map("refresh_hash")
+  expiresAt   DateTime  @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Category {
+  id            String                @id @default(uuid()) @db.Uuid
+  name          String                @db.VarChar(50)
+  slug          String                @unique @db.VarChar(50)
+  requiresAdult Boolean               @default(false) @map("requires_adult")
+  sortOrder     Int                   @default(0) @map("sort_order")
+  questions     QuestionCategoryMap[]
+  suggestions   SuggestedQuestion[]
+
+  @@map("categories")
+}
+
+model Question {
+  id           String                @id @default(uuid()) @db.Uuid
+  title        String
+  source       QuestionSource
+  suggestedBy  String?               @map("suggested_by") @db.Uuid
+  status       QuestionStatus        @default(published)
+  publishedAt  DateTime?             @map("published_at")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  suggester    User?                 @relation(fields: [suggestedBy], references: [id])
+  choices      QuestionChoice[]
+  categories   QuestionCategoryMap[]
+  answers      UserAnswer[]
+  comments     Comment[]
+  ratings      QuestionRating[]
+  suggestion   SuggestedQuestion?
+
+  @@index([status, publishedAt])
+  @@map("questions")
+}
+
+model QuestionChoice {
+  id          String   @id @default(uuid()) @db.Uuid
+  questionId  String   @map("question_id") @db.Uuid
+  choiceIndex Int      @map("choice_index")
+  content     String   @db.VarChar(255)
+  imageUrl    String?  @map("image_url")
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, choiceIndex])
+  @@map("question_choices")
+}
+
+model QuestionCategoryMap {
+  questionId String   @map("question_id") @db.Uuid
+  categoryId String   @map("category_id") @db.Uuid
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, categoryId])
+  @@map("question_category_map")
+}
+
+model QuestionRating {
+  id         String   @id @default(uuid()) @db.Uuid
+  questionId String   @map("question_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  rating     Decimal  @db.Decimal(2, 1)
+  createdAt  DateTime @default(now()) @map("created_at")
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, userId])
+  @@map("question_ratings")
+}
+
+model UserAnswer {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  questionId  String   @map("question_id") @db.Uuid
+  choiceIndex Int      @map("choice_index")
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@map("user_answers")
+}
+
+model Comment {
+  id          String          @id @default(uuid()) @db.Uuid
+  questionId  String          @map("question_id") @db.Uuid
+  userId      String          @map("user_id") @db.Uuid
+  choiceIndex Int?            @map("choice_index")
+  content     String
+  createdAt   DateTime        @default(now()) @map("created_at")
+  deletedAt   DateTime?       @map("deleted_at")
+  question    Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes       CommentLike[]
+  reports     CommentReport[]
+
+  @@index([questionId, createdAt])
+  @@map("comments")
+}
+
+model CommentLike {
+  id        String   @id @default(uuid()) @db.Uuid
+  commentId String   @map("comment_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@map("comment_likes")
+}
+
+model CommentReport {
+  id        String   @id @default(uuid()) @db.Uuid
+  commentId String   @map("comment_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  reason    String
+  createdAt DateTime @default(now()) @map("created_at")
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@map("comment_reports")
+}
+
+model SuggestedQuestion {
+  id           String              @id @default(uuid()) @db.Uuid
+  userId       String              @map("user_id") @db.Uuid
+  title        String
+  categoryId   String              @map("category_id") @db.Uuid
+  choices      Json
+  origin       SuggestionOrigin    @default(user)
+  status       SuggestionStatus    @default(pending)
+  reviewReason String?             @map("review_reason")
+  questionId   String?             @unique @map("question_id") @db.Uuid
+  createdAt    DateTime            @default(now()) @map("created_at")
+  reviewedAt   DateTime?           @map("reviewed_at")
+  reviewedById String?             @map("reviewed_by") @db.Uuid
+  user         User                @relation("SuggestionAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer     User?               @relation("SuggestionReviewer", fields: [reviewedById], references: [id])
+  category     Category            @relation(fields: [categoryId], references: [id])
+  question     Question?           @relation(fields: [questionId], references: [id])
+  logs         QuestionReviewLog[]
+
+  @@index([status, createdAt])
+  @@map("suggested_questions")
+}
+
+model QuestionReviewLog {
+  id           String            @id @default(uuid()) @db.Uuid
+  suggestionId String            @map("suggestion_id") @db.Uuid
+  adminId      String            @map("admin_id") @db.Uuid
+  action       ReviewAction
+  reason       String?
+  createdAt    DateTime          @default(now()) @map("created_at")
+  suggestion   SuggestedQuestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  admin        User              @relation(fields: [adminId], references: [id])
+
+  @@map("question_review_logs")
+}
+
+model AiGenerationSetting {
+  id        Int       @id @default(1)
+  enabled   Boolean   @default(false)
+  cadence   String    @default("manual")
+  prompt    String
+  lastRunAt DateTime? @map("last_run_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("ai_generation_settings")
+}

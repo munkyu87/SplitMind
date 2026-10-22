@@ -1,0 +1,23 @@
+{
+  "name": "split-mind",
+  "private": true,
+  "version": "0.0.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run build -w @splitmind/contract && npm run start:dev -w @splitmind/api",
+    "dev:mobile": "npm run start -w @splitmind/mobile",
+    "android": "npm run android -w @splitmind/mobile",
+    "ios": "npm run ios -w @splitmind/mobile",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run prisma:migrate -w @splitmind/api",
+    "db:seed": "npm run prisma:seed -w @splitmind/api",
+    "build": "npm run build -w @splitmind/contract && npm run build -w @splitmind/api"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

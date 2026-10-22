@@ -1,0 +1,33 @@
+node_modules/
+dist/
+.turbo/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage/
+.idea/
+*.tsbuildinfo
+
+# Android
+**/.gradle/
+**/local.properties
+**/*.iml
+**/.cxx/
+**/android/app/build/
+**/android/build/
+
+# iOS
+**/Pods/
+**/ios/build/
+**/DerivedData/
+**/*.xcuserstate
+**/.xcode.env.local
+
+# Metro / Ruby
+.metro-health-check*
+vendor/bundle/
+*.jsbundle
+*.keystore
+!debug.keystore
