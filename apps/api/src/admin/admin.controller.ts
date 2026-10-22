@@ -29,6 +29,11 @@ export class AdminController {
     return this.admin.reject(id, body, user);
   }
 
+  @Post("questions/:id/archive")
+  archive(@Param("id") id: string) {
+    return this.admin.archive(id);
+  }
+
   @Get("reports")
   reports() {
     return this.admin.reports();

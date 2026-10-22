@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Body, Controller, Post } from "@nestjs/common";
 import { suggestionSchema } from "@splitmind/contract";
 import { AuthUser } from "../common/auth.guard";
 import { CurrentUser } from "../common/decorators";
@@ -15,10 +15,5 @@ export class SuggestionsController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.suggestions.create(body, user);
-  }
-
-  @Get("mine")
-  mine(@CurrentUser() user: AuthUser) {
-    return this.suggestions.mine(user);
   }
 }

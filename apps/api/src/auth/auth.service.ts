@@ -26,7 +26,7 @@ export class AuthService {
         nickname: profile.nickname,
       },
     });
-    return this.issue(user);
+    return this.issue(await this.stampTerms(user));
   }
 
   async devLogin(input: DevLoginInput) {
@@ -42,7 +42,7 @@ export class AuthService {
         nickname: input.nickname,
       },
     });
-    return this.issue(user);
+    return this.issue(await this.stampTerms(user));
   }
 
   async refresh(refreshToken: string) {
@@ -90,6 +90,39 @@ export class AuthService {
       isAdmin: user.isAdmin,
       isAdult: user.isAdult,
     };
+  }
+
+  async withdraw(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.deletedAt) apiError(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "사용자를 찾을 수 없습니다.");
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.session.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: now },
+      }),
+      this.prisma.comment.updateMany({
+        where: { userId, deletedAt: null },
+        data: { deletedAt: now, content: "" },
+      }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          deletedAt: now,
+          nickname: null,
+          isAdmin: false,
+          providerId: `withdrawn:${userId}`,
+        },
+      }),
+    ]);
+  }
+
+  private async stampTerms(user: User) {
+    if (user.termsAgreedAt || user.deletedAt) return user;
+    return this.prisma.user.update({
+      where: { id: user.id },
+      data: { termsAgreedAt: new Date() },
+    });
   }
 
   private hash(token: string) {

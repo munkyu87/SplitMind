@@ -6,11 +6,22 @@ export const StorageKeys = {
   REFRESH_TOKEN: 'refresh-token',
 };
 
-const storage = new MMKV();
+const memory = new Map<string, string>();
+
+function openStorage() {
+  try {
+    return new MMKV();
+  } catch {
+    return null;
+  }
+}
+
+const storage = openStorage();
 
 export const localStorage = {
   getItem: (key: string): string | null => {
     try {
+      if (!storage) return memory.get(key) ?? null;
       return storage.getString(key) ?? null;
     } catch (e) {
       console.warn(`Error getting item [${key}]`, e);
@@ -18,9 +29,12 @@ export const localStorage = {
     }
   },
 
-
   setItem: (key: string, value: string): void => {
     try {
+      if (!storage) {
+        memory.set(key, value);
+        return;
+      }
       storage.set(key, value);
     } catch (e) {
       console.warn(`Error setting item [${key}]`, e);
@@ -29,6 +43,10 @@ export const localStorage = {
 
   removeItem: (key: string): void => {
     try {
+      if (!storage) {
+        memory.delete(key);
+        return;
+      }
       storage.delete(key);
     } catch (e) {
       console.warn(`Error removing item [${key}]`, e);

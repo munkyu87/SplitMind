@@ -99,6 +99,15 @@ export class AdminService implements OnModuleInit, OnModuleDestroy {
     return { ok: true };
   }
 
+  async archive(id: string) {
+    const question = await this.prisma.question.findUnique({ where: { id } });
+    if (!question || question.status !== "published") {
+      apiError(HttpStatus.NOT_FOUND, "NOT_FOUND", "공개 중인 질문을 찾을 수 없습니다.");
+    }
+    await this.prisma.question.update({ where: { id }, data: { status: "archived" } });
+    return { ok: true };
+  }
+
   async reports() {
     const rows = await this.prisma.commentReport.findMany({
       orderBy: { createdAt: "desc" },
@@ -138,7 +147,7 @@ export class AdminService implements OnModuleInit, OnModuleDestroy {
     if (!setting?.enabled || setting.cadence === "manual") return;
     const wait = setting.cadence === "weekly" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
     if (setting.lastRunAt && Date.now() - setting.lastRunAt.getTime() < wait) return;
-    const admin = await this.prisma.user.findFirst({ where: { isAdmin: true } });
+    const admin = await this.prisma.user.findFirst({ where: { isAdmin: true, deletedAt: null } });
     if (!admin || !process.env.OPENAI_API_KEY) return;
     await this.createFromModel(setting.prompt, admin.id);
     await this.prisma.aiGenerationSetting.update({ where: { id: 1 }, data: { lastRunAt: new Date() } });
@@ -147,7 +156,10 @@ export class AdminService implements OnModuleInit, OnModuleDestroy {
   private async createFromModel(prompt: string, userId: string) {
     const key = process.env.OPENAI_API_KEY;
     if (!key) apiError(HttpStatus.SERVICE_UNAVAILABLE, "AI_UNAVAILABLE", "OPENAI_API_KEY가 없습니다.");
-    const categories = await this.prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
+    const categories = await this.prisma.category.findMany({
+      where: { requiresAdult: false, slug: { not: "adult" } },
+      orderBy: { sortOrder: "asc" },
+    });
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {

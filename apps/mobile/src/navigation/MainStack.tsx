@@ -1,6 +1,6 @@
-import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import MainTabs from '@navigation/MainTabs';
+import React from "react";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import MainTabs from "@navigation/MainTabs";
 
 export type MainStackParamList = {
   MainTabs: undefined;
@@ -13,5 +13,5 @@ const MainStack = () => (
     <Stack.Screen name="MainTabs" component={MainTabs} />
   </Stack.Navigator>
 );
-  
+
 export default MainStack;

@@ -17,6 +17,8 @@ module.exports = {
           '@themes': './src/themes',
           '@types': './src/types',
           '@utils': './src/utils',
+          '@session': './src/session',
+          '@api': './src/api',
         },
       },
     ],

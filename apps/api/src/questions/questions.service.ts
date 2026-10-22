@@ -74,7 +74,7 @@ export class QuestionsService {
   }
 
   async results(id: string, user: AuthUser) {
-    await this.loadReadable(id, user);
+    await this.requireAnswered(id, user);
     const [choices, grouped, mine, rating] = await Promise.all([
       this.prisma.questionChoice.findMany({ where: { questionId: id }, orderBy: { choiceIndex: "asc" } }),
       this.prisma.userAnswer.groupBy({
@@ -106,13 +106,22 @@ export class QuestionsService {
   }
 
   async rate(id: string, input: RatingInput, user: AuthUser) {
-    await this.loadReadable(id, user);
+    await this.requireAnswered(id, user);
     const rating = await this.prisma.questionRating.upsert({
       where: { questionId_userId: { questionId: id, userId: user.id } },
       update: { rating: input.rating },
       create: { questionId: id, userId: user.id, rating: input.rating },
     });
     return { questionId: id, rating: Number(rating.rating) };
+  }
+
+  async requireAnswered(id: string, user: AuthUser) {
+    const question = await this.loadReadable(id, user);
+    const answer = await this.prisma.userAnswer.findUnique({
+      where: { userId_questionId: { userId: user.id, questionId: id } },
+    });
+    if (!answer) apiError(HttpStatus.FORBIDDEN, "NOT_ANSWERED", "참여한 뒤에 볼 수 있습니다.");
+    return question;
   }
 
   async loadReadable(id: string, user: AuthUser) {
@@ -187,12 +196,14 @@ export class QuestionsService {
           ? Prisma.sql`LEFT JOIN question_ratings r ON r.question_id = q.id`
           : balanceJoin;
 
+    const having = query.sort === "rating" ? Prisma.sql`HAVING COUNT(r.id) >= 5` : Prisma.empty;
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT ${select}
       FROM questions q
       ${joins}
       WHERE ${where}
       GROUP BY q.id, q.published_at
+      ${having}
       ORDER BY ${order}
       LIMIT ${query.limit} OFFSET ${offset}
     `;

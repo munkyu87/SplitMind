@@ -17,7 +17,9 @@
     "@nestjs/platform-express": "^11.1.6",
     "@prisma/client": "^6.16.2",
     "@splitmind/contract": "*",
+    "@types/multer": "^1.4.12",
     "dotenv": "^17.2.3",
+    "multer": "^1.4.5-lts.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "zod": "^3.25.76"

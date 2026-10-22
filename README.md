@@ -17,4 +17,4 @@ npm run dev:api
 
 앱은 `npm run ios` 또는 `npm run android`.
 
-개발 중에는 `ALLOW_DEV_LOGIN=true`일 때 `POST /v1/auth/dev`로 소셜 SDK 없이 세션을 만들 수 있다. 19금 화면과 본인인증은 이번 버전에 넣지 않는다. 선택지 이미지는 URL을 저장하고, 파일 업로드 저장소는 아직 없다.
+개발 중에는 `ALLOW_DEV_LOGIN=true`일 때 `POST /v1/auth/dev`로 소셜 SDK 없이 세션을 만들 수 있다. 19금 화면과 본인인증은 이번 버전에 넣지 않는다. 선택지 사진은 `POST /v1/media`로 올리고, 외부 http 주소도 그대로 쓸 수 있다.

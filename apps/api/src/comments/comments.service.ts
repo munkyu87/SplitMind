@@ -14,7 +14,7 @@ export class CommentsService {
   ) {}
 
   async list(questionId: string, query: Pick<ListQuery, "cursor" | "limit">, user: AuthUser) {
-    await this.questions.loadReadable(questionId, user);
+    await this.questions.requireAnswered(questionId, user);
     const offset = decodeOffset(query.cursor);
     if (offset < 0) apiError(HttpStatus.BAD_REQUEST, "INVALID_CURSOR", "커서가 올바르지 않습니다.");
     const rows = await this.prisma.comment.findMany({
@@ -34,7 +34,7 @@ export class CommentsService {
   }
 
   async create(questionId: string, input: CommentInput, user: AuthUser) {
-    const question = await this.questions.loadReadable(questionId, user);
+    const question = await this.questions.requireAnswered(questionId, user);
     if (input.choiceIndex != null && !question.choices.some((choice) => choice.choiceIndex === input.choiceIndex)) {
       apiError(HttpStatus.BAD_REQUEST, "INVALID_CHOICE", "선택지가 올바르지 않습니다.");
     }
@@ -94,7 +94,7 @@ export class CommentsService {
   private async visible(id: string, user: AuthUser) {
     const comment = await this.prisma.comment.findUnique({ where: { id } });
     if (!comment || comment.deletedAt) apiError(HttpStatus.NOT_FOUND, "NOT_FOUND", "댓글을 찾을 수 없습니다.");
-    await this.questions.loadReadable(comment.questionId, user);
+    await this.questions.requireAnswered(comment.questionId, user);
     return comment;
   }
 

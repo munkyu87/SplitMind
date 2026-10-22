@@ -11,7 +11,15 @@ const halfStep = (value: number) => Math.abs(value * 2 - Math.round(value * 2)) 
 
 export const choiceInputSchema = z.object({
   content: z.string().trim().min(1).max(255),
-  imageUrl: z.string().url().optional(),
+  imageUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .refine(
+      (value) => /^\/v1\/media\/[A-Za-z0-9._-]+$/.test(value) || /^https?:\/\//.test(value),
+      "이미지 주소가 올바르지 않습니다.",
+    )
+    .optional(),
 });
 
 export const socialLoginSchema = z.object({

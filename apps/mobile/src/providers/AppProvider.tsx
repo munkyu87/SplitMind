@@ -1,33 +1,31 @@
-import React from 'react';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Provider as ReduxProvider } from 'react-redux';
-import { NavigationContainer } from '@react-navigation/native';
-import { ThemeProvider } from 'styled-components/native';
-import { useColorScheme } from 'react-native';
+import React from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { NavigationContainer } from "@react-navigation/native";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import RootNavigator from "@navigation/RootNavigator";
+import { ApiError, SessionProvider } from "@session/SessionProvider";
 
-import { themes, ThemeMode } from '@themes/theme';
-import { store } from '@stores/store';
-import RootNavigator from '@navigation/RootNavigator';
-import { CustomThemeProvider } from '@themes/ThemeProvider';
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (count, error) => {
+        if (error instanceof ApiError && error.status < 500) return false;
+        return count < 1;
+      },
+    },
+  },
+});
 
-const AppProvider = () => {
-  // const scheme = useColorScheme(); // 'light' | 'dark' | null
-
-  const selectedMode: ThemeMode = 'star';
-//   const selectedTheme =
-//     scheme === 'dark' ? darkTheme : scheme === 'light' ? lightTheme : blueTheme;
-
-  return (
-    <SafeAreaProvider>
-      <ReduxProvider store={store}>
-        <CustomThemeProvider>
-          <NavigationContainer>
-            <RootNavigator />
-          </NavigationContainer>
-        </CustomThemeProvider>
-      </ReduxProvider>
-    </SafeAreaProvider>
-  );
-};
+const AppProvider = () => (
+  <SafeAreaProvider>
+    <QueryClientProvider client={queryClient}>
+      <SessionProvider>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </SessionProvider>
+    </QueryClientProvider>
+  </SafeAreaProvider>
+);
 
 export default AppProvider;

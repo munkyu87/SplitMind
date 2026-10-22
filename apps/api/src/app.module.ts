@@ -6,12 +6,13 @@ import { JwtAuthGuard } from "./common/auth.guard";
 import { CommentsModule } from "./comments/comments.module";
 import { HealthController } from "./health.controller";
 import { MeModule } from "./me/me.module";
+import { MediaModule } from "./media/media.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { QuestionsModule } from "./questions/questions.module";
 import { SuggestionsModule } from "./suggestions/suggestions.module";
 
 @Module({
-  imports: [PrismaModule, AuthModule, QuestionsModule, CommentsModule, SuggestionsModule, MeModule, AdminModule],
+  imports: [PrismaModule, AuthModule, QuestionsModule, CommentsModule, SuggestionsModule, MeModule, MediaModule, AdminModule],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

@@ -3,6 +3,7 @@ import { Reflector } from "@nestjs/core";
 import { JwtService } from "@nestjs/jwt";
 import { HttpStatus } from "@nestjs/common";
 import { apiError } from "./http";
+import { PrismaService } from "../prisma/prisma.service";
 
 export const IS_PUBLIC = "isPublic";
 export const IS_ADMIN = "isAdmin";
@@ -19,9 +20,10 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwt: JwtService,
     private readonly reflector: Reflector,
+    private readonly prisma: PrismaService,
   ) {}
 
-  canActivate(context: ExecutionContext) {
+  async canActivate(context: ExecutionContext) {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [
       context.getHandler(),
       context.getClass(),
@@ -42,6 +44,13 @@ export class JwtAuthGuard implements CanActivate {
         isAdmin: Boolean(payload.isAdmin),
         isAdult: Boolean(payload.isAdult),
       } satisfies AuthUser;
+      const row = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { deletedAt: true },
+      });
+      if (!row || row.deletedAt) {
+        apiError(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+      }
     } catch {
       apiError(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
     }
