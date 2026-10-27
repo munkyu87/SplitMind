@@ -1,11 +1,12 @@
-import { Body, Controller, Delete, Get, HttpCode, Post } from "@nestjs/common";
-import { adultSchema } from "@splitmind/contract";
+import { Body, Controller, Delete, Get, HttpCode, Patch, Post } from "@nestjs/common";
+import { adultSchema, profileSchema } from "@splitmind/contract";
 import { AuthService } from "../auth/auth.service";
 import { AuthUser } from "../common/auth.guard";
 import { CurrentUser } from "../common/decorators";
 import { apiError } from "../common/http";
 import { HttpStatus } from "@nestjs/common";
 import { ZodPipe } from "../common/zod.pipe";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { SuggestionsService } from "../suggestions/suggestions.service";
 
@@ -21,7 +22,26 @@ export class MeController {
   async me(@CurrentUser() user: AuthUser) {
     const row = await this.prisma.user.findUnique({ where: { id: user.id } });
     if (!row || row.deletedAt) apiError(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "사용자를 찾을 수 없습니다.");
-    return this.auth.toPublic(row);
+    return this.auth.toPublic(await this.auth.ensureNickname(row));
+  }
+
+  @Patch()
+  async update(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodPipe(profileSchema)) body: ReturnType<typeof profileSchema.parse>,
+  ) {
+    try {
+      const row = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { nickname: body.nickname },
+      });
+      return this.auth.toPublic(row);
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        apiError(HttpStatus.CONFLICT, "NICKNAME_TAKEN", "이미 쓰는 닉네임입니다.");
+      }
+      throw err;
+    }
   }
 
   @Delete()

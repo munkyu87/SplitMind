@@ -50,4 +50,9 @@ export class CommentsController {
   ) {
     return this.comments.report(id, body, user);
   }
+
+  @Delete("comments/:id/reports")
+  withdrawReport(@Param("id") id: string, @CurrentUser() user: AuthUser) {
+    return this.comments.withdrawReport(id, user);
+  }
 }

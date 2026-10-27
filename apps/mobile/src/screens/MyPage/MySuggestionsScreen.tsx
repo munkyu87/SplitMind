@@ -1,13 +1,15 @@
 import { Suggestion } from "@api/types";
 import { CategoryPill, Screen } from "@components/ui";
 import { MyStackParamList } from "@navigation/MyStack";
-import { useSession } from "@session/SessionProvider";
+import { mediaUri, useSession } from "@session/SessionProvider";
 import { formatDate, palette } from "@themes/palette";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+
+const statusLabel = { pending: "대기", approved: "승인", rejected: "거절" } as const;
 
 const filters = [
   { id: "all", label: "전체" },
@@ -20,6 +22,7 @@ const MySuggestionsScreen = () => {
   const { request } = useSession();
   const navigation = useNavigation<NativeStackNavigationProp<MyStackParamList>>();
   const [filter, setFilter] = useState<(typeof filters)[number]["id"]>("all");
+  const [openId, setOpenId] = useState<string>();
   const suggestions = useQuery({
     queryKey: ["my-suggestions"],
     queryFn: () => request<Suggestion[]>("/me/suggestions"),
@@ -41,14 +44,29 @@ const MySuggestionsScreen = () => {
             </Pressable>
           ))}
         </View>
-        {items.map((item) => (
+        {items.map((item) => {
+          const open = openId === item.id;
+          return (
           <View key={item.id} style={styles.card}>
-            <View style={styles.row}>
-              <Text style={styles.status}>{item.status === "pending" ? "대기" : item.status === "approved" ? "승인" : "거절"}</Text>
-              <CategoryPill slug={item.category.slug} name={item.category.name} />
-            </View>
-            <Text style={styles.cardTitle}>{item.title}</Text>
-            <Text style={styles.date}>{formatDate(item.createdAt)} 제안</Text>
+            <Pressable onPress={() => setOpenId(open ? undefined : item.id)}>
+              <View style={styles.row}>
+                <CategoryPill slug={item.category.slug} name={item.category.name} />
+                <Text style={[styles.status, styles[item.status]]}>{statusLabel[item.status]}</Text>
+              </View>
+              <Text style={styles.cardTitle}>{item.title}</Text>
+              <Text style={styles.date}>{formatDate(item.createdAt)} 제안</Text>
+            </Pressable>
+            {open ? (
+              <View style={styles.choices}>
+                {item.choices.map((choice, index) => (
+                  <View key={`${item.id}-${index}`} style={styles.choiceRow}>
+                    <Text style={styles.choiceIndex}>{index + 1}</Text>
+                    <Text style={styles.choiceText}>{choice.content}</Text>
+                    {choice.imageUrl ? <Image source={{ uri: mediaUri(choice.imageUrl) }} style={styles.thumb} /> : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
             {item.status === "approved" && item.questionId ? (
               <Pressable
                 onPress={() =>
@@ -63,7 +81,8 @@ const MySuggestionsScreen = () => {
             ) : null}
             {item.status === "rejected" && item.reviewReason ? <Text style={styles.reason}>거절 사유 {item.reviewReason}</Text> : null}
           </View>
-        ))}
+          );
+        })}
       </ScrollView>
     </Screen>
   );
@@ -83,10 +102,18 @@ const styles = StyleSheet.create({
   filterText: { color: palette.muted, fontWeight: "700" },
   filterTextOn: { color: "#7A5C78" },
   card: { backgroundColor: "#fff", borderRadius: 18, padding: 16, marginBottom: 10 },
-  row: { flexDirection: "row", gap: 8, alignItems: "center" },
-  status: { fontWeight: "800", color: palette.text },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  status: { fontWeight: "800", fontSize: 13 },
+  pending: { color: palette.muted },
+  approved: { color: "#2F6F6A" },
+  rejected: { color: "#B42318" },
   cardTitle: { marginTop: 8, fontSize: 16, fontWeight: "800", color: palette.text },
   date: { marginTop: 4, color: palette.muted, fontSize: 12 },
+  choices: { marginTop: 12, gap: 8 },
+  choiceRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  choiceIndex: { width: 16, fontWeight: "800", color: palette.muted },
+  choiceText: { flex: 1, color: palette.text, lineHeight: 20 },
+  thumb: { width: 36, height: 36, borderRadius: 8 },
   link: { marginTop: 8, color: "#2F6F6A", fontWeight: "700" },
   reason: { marginTop: 8, color: "#B42318" },
 });

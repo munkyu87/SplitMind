@@ -214,6 +214,8 @@ export class QuestionsService {
     return {
       status: "published",
       ...(query.q ? { title: { contains: query.q, mode: "insensitive" } } : {}),
+      ...(query.unanswered ? { answers: { none: { userId: user.id } } } : {}),
+      ...(query.answered ? { answers: { some: { userId: user.id } } } : {}),
       AND: [
         ...(query.category ? [{ categories: { some: { category: { slug: query.category } } } }] : []),
         ...(!user.isAdult ? [{ categories: { none: { category: { requiresAdult: true } } } }] : []),
@@ -236,6 +238,18 @@ export class QuestionsService {
         SELECT 1 FROM question_category_map m
         JOIN categories c ON c.id = m.category_id
         WHERE m.question_id = q.id AND c.requires_adult = true
+      )`);
+    }
+    if (query.unanswered) {
+      parts.push(Prisma.sql`NOT EXISTS (
+        SELECT 1 FROM user_answers ua
+        WHERE ua.question_id = q.id AND ua.user_id = ${user.id}::uuid
+      )`);
+    }
+    if (query.answered) {
+      parts.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM user_answers ua
+        WHERE ua.question_id = q.id AND ua.user_id = ${user.id}::uuid
       )`);
     }
     return Prisma.join(parts, " AND ");

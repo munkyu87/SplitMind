@@ -3,7 +3,11 @@ import { localStorage, StorageKeys } from "@utils/localStorage";
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
 
-export const API_BASE = Platform.OS === "android" ? "http://10.0.2.2:3000/v1" : "http://localhost:3000/v1";
+const androidHost = /sdk_gphone|emulator|google_sdk|Android SDK/i.test(String((Platform.constants as { Model?: string }).Model ?? ""))
+  ? "10.0.2.2"
+  : "localhost";
+
+export const API_BASE = Platform.OS === "android" ? `http://${androidHost}:3000/v1` : "http://localhost:3000/v1";
 
 export function mediaUri(url?: string | null) {
   if (!url) return undefined;
@@ -30,6 +34,7 @@ type SessionContextValue = {
   loginDev: (provider: PublicUser["provider"]) => Promise<void>;
   logout: () => Promise<void>;
   withdraw: () => Promise<void>;
+  applyUser: (user: PublicUser) => void;
   request: <T>(path: string, init?: RequestInit) => Promise<T>;
 };
 
@@ -158,6 +163,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       withdraw: async () => {
         await request("/me", { method: "DELETE" });
         persist(null);
+      },
+      applyUser: (next) => {
+        if (!tokens.current) return;
+        persist({ ...tokens.current, user: next });
       },
       request,
     }),

@@ -6,8 +6,10 @@ import { palette, percent, toneFor } from "@themes/palette";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Dimensions, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+
+const reportReasons = ["욕설·비방", "개인정보", "광고·도배", "주제와 무관"];
 
 const QuestionResultScreen = () => {
   const { questionId } = useRoute<RouteProp<QuestionListStackParamList, "QuestionResult">>().params;
@@ -17,6 +19,26 @@ const QuestionResultScreen = () => {
   const [rating, setRating] = useState<number | null>(null);
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
+  const [keyboardLift, setKeyboardLift] = useState(0);
+  const [reportTarget, setReportTarget] = useState<Comment | null>(null);
+  const [pickedReason, setPickedReason] = useState<string | null>(null);
+  const [reportNote, setReportNote] = useState("");
+  const [reporting, setReporting] = useState(false);
+  const commentInput = useRef<TextInput>(null);
+  const reportInput = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const show = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardLift(Math.max(0, Dimensions.get("screen").height - event.endCoordinates.screenY));
+    });
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardLift(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   const detail = useQuery({
     queryKey: ["question", questionId],
@@ -62,14 +84,51 @@ const QuestionResultScreen = () => {
     await client.invalidateQueries({ queryKey: ["comments", questionId] });
   };
 
-  const report = async (comment: Comment) => {
+  const closeReport = () => {
+    if (reporting) return;
+    reportInput.current?.blur();
+    Keyboard.dismiss();
+    setKeyboardLift(0);
+    setPickedReason(null);
+    setReportNote("");
+    setReportTarget(null);
+  };
+
+  const report = async (reason: string) => {
+    if (!reportTarget || reporting) return;
+    reportInput.current?.blur();
+    Keyboard.dismiss();
+    setKeyboardLift(0);
+    setPickedReason(reason);
+    setReporting(true);
+    setError("");
     try {
-      await request(`/comments/${comment.id}/reports`, {
+      await request(`/comments/${reportTarget.id}/reports`, {
         method: "POST",
-        body: JSON.stringify({ reason: "신고합니다." }),
+        body: JSON.stringify({ reason }),
       });
+      setReportNote("");
+      setReportTarget(null);
+      await client.invalidateQueries({ queryKey: ["comments", questionId] });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "신고에 실패했습니다.");
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  const withdrawReport = async () => {
+    if (!reportTarget || reporting) return;
+    setReporting(true);
+    setError("");
+    try {
+      await request(`/comments/${reportTarget.id}/reports`, { method: "DELETE" });
+      setReportTarget(null);
+      await client.invalidateQueries({ queryKey: ["comments", questionId] });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "신고를 취소하지 못했습니다.");
+    } finally {
+      setReporting(false);
     }
   };
 
@@ -148,47 +207,122 @@ const QuestionResultScreen = () => {
           <Text style={styles.rateLabel}>별점 {mine ?? "-"}</Text>
           <View style={styles.stars}>
             {[1, 2, 3, 4, 5].map((star) => (
-              <Pressable key={star} onPress={() => saveRating(star)}>
+              <Pressable key={star} onPress={() => saveRating(star)} hitSlop={8} style={styles.starHit}>
                 <Text style={styles.star}>{(mine ?? 0) >= star ? "★" : "☆"}</Text>
               </Pressable>
             ))}
           </View>
-          <Text style={styles.help}>이 질문이 얼마나 흥미로웠나요?</Text>
         </View>
         <Text style={styles.section}>댓글 {comments.data?.items.length ?? 0}</Text>
         {(comments.data?.items ?? []).map((comment) => (
           <View key={comment.id} style={styles.comment}>
-            <Text style={[styles.alias, { color: tone.label }]}>{comment.alias}</Text>
+            <Text style={[styles.alias, { color: tone.label }]}>{comment.nickname}</Text>
             <Text style={styles.commentBody}>{comment.content}</Text>
             <View style={styles.commentRow}>
-              <Pressable onPress={() => like(comment)}>
-                <Text style={styles.action}>{comment.likedByMe ? "좋아요 취소" : "좋아요"} {comment.likeCount}</Text>
+              <Pressable onPress={() => like(comment)} hitSlop={8} style={[styles.like, comment.likedByMe && styles.likeOn]}>
+                <Text style={styles.thumb}>👍</Text>
+                <Text style={[styles.likeCount, comment.likedByMe && styles.likeCountOn]}>{comment.likeCount}</Text>
               </Pressable>
-              <Pressable onPress={() => report(comment)}>
-                <Text style={styles.action}>신고하기</Text>
+              <Pressable
+                onPress={() => {
+                  setError("");
+                  setPickedReason(null);
+                  setReportNote("");
+                  setReportTarget(comment);
+                }}
+                hitSlop={8}
+                style={styles.report}
+              >
+                <Text style={[styles.flag, comment.reportedByMe && styles.flagOn]}>⚑</Text>
+                {comment.reportedByMe ? <Text style={styles.reported}>신고함</Text> : null}
               </Pressable>
             </View>
           </View>
         ))}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
-      <View style={styles.composer}>
+      <View style={[styles.composer, { marginBottom: keyboardLift }]}>
         <TextInput
+          ref={commentInput}
           value={content}
           onChangeText={setContent}
           placeholder="댓글을 남겨 주세요"
           placeholderTextColor={palette.muted}
           style={styles.input}
+          multiline
+          textAlignVertical="top"
           maxLength={500}
         />
         <Pressable
           style={[styles.send, !content.trim() && { opacity: 0.5 }]}
           disabled={!content.trim() || sendComment.isPending}
-          onPress={() => sendComment.mutate()}
+          onPress={() => {
+            commentInput.current?.blur();
+            Keyboard.dismiss();
+            setKeyboardLift(0);
+            sendComment.mutate();
+          }}
         >
           <Text style={styles.sendText}>등록</Text>
         </Pressable>
       </View>
+      <Modal visible={reportTarget != null} transparent animationType="fade" onRequestClose={closeReport}>
+        <Pressable style={styles.dim} onPress={closeReport}>
+          <Pressable style={styles.sheet} onPress={() => undefined}>
+            {reportTarget?.reportedByMe ? (
+              <>
+                <Text style={styles.sheetTitle}>신고 취소</Text>
+                {reportTarget.reportReason ? <Text style={styles.picked}>({reportTarget.reportReason})</Text> : null}
+                <Text style={styles.sheetBody}>이 신고를 취소할까요?</Text>
+                <Pressable style={styles.withdraw} disabled={reporting} onPress={withdrawReport}>
+                  <Text style={styles.withdrawText}>신고 취소</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.sheetTitle}>신고</Text>
+                <Text style={styles.sheetBody}>이유를 고르거나 적어 주세요.</Text>
+                <ScrollView keyboardShouldPersistTaps="handled" style={[styles.reasonList, keyboardLift > 0 && styles.reasonListShort]} bounces={false}>
+                  {reportReasons.map((reason) => {
+                    const on = pickedReason === reason;
+                    return (
+                      <Pressable
+                        key={reason}
+                        disabled={reporting}
+                        onPress={() => report(reason)}
+                        style={({ pressed }) => [styles.reason, (pressed || on) && styles.reasonOn]}
+                      >
+                        <Text style={[styles.reasonText, on && styles.reasonTextOn]}>{reason}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                <TextInput
+                  ref={reportInput}
+                  value={reportNote}
+                  onChangeText={setReportNote}
+                  placeholder="직접 적어 주세요"
+                  placeholderTextColor={palette.muted}
+                  style={styles.reportInput}
+                  maxLength={500}
+                  multiline
+                />
+                <Pressable
+                  style={[styles.send, { marginTop: 8 }, (!reportNote.trim() || reporting) && { opacity: 0.5 }]}
+                  disabled={!reportNote.trim() || reporting}
+                  onPress={() => report(reportNote.trim())}
+                >
+                  <Text style={styles.sendText}>이 내용으로 신고</Text>
+                </Pressable>
+              </>
+            )}
+            {error ? <Text style={styles.sheetError}>{error}</Text> : null}
+            <Pressable style={styles.cancel} disabled={reporting} onPress={closeReport}>
+              <Text style={styles.cancelText}>{reportTarget?.reportedByMe ? "닫기" : "취소"}</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 };
@@ -210,20 +344,55 @@ const styles = StyleSheet.create({
   barLabel: { flex: 1, fontWeight: "700", color: palette.text },
   barValue: { fontWeight: "800", color: palette.text },
   mine: { marginLeft: 8, backgroundColor: "#7A5C78", color: "#fff", overflow: "hidden", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, fontSize: 12, fontWeight: "700" },
-  rate: { marginTop: 16, backgroundColor: "#fff", borderRadius: 18, padding: 16, alignItems: "center" },
-  rateLabel: { fontWeight: "800", color: "#7A5C78" },
-  stars: { flexDirection: "row", marginTop: 6 },
-  star: { fontSize: 28, color: "#F5C518", marginHorizontal: 2 },
-  help: { marginTop: 4, color: palette.muted, fontSize: 12 },
+  rate: { marginTop: 8, minHeight: 48, backgroundColor: "#fff", borderRadius: 14, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  rateLabel: { fontWeight: "800", fontSize: 16, lineHeight: 22, includeFontPadding: false, color: palette.text },
+  stars: { flexDirection: "row", alignItems: "center" },
+  starHit: { height: 22, justifyContent: "center" },
+  star: { fontSize: 20, lineHeight: 22, includeFontPadding: false, textAlignVertical: "center", color: "#F5C518", marginLeft: 2 },
   section: { marginTop: 18, marginBottom: 8, fontWeight: "800", color: palette.text },
-  comment: { backgroundColor: "#fff", borderRadius: 16, padding: 14, marginBottom: 8 },
+  comment: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 8,
+    shadowColor: "#5C4030",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
+  },
   alias: { fontWeight: "800" },
   commentBody: { marginTop: 4, color: palette.text, lineHeight: 20 },
-  commentRow: { flexDirection: "row", gap: 14, marginTop: 8 },
-  action: { color: palette.muted, fontSize: 12 },
+  commentRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
+  like: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 999, paddingHorizontal: 2, paddingVertical: 2 },
+  likeOn: { backgroundColor: "#F3E8F4", paddingHorizontal: 8 },
+  thumb: { fontSize: 14, lineHeight: 18, includeFontPadding: false },
+  likeCount: { color: palette.muted, fontSize: 12, fontWeight: "700", includeFontPadding: false },
+  likeCountOn: { color: "#7A5C78" },
+  report: { flexDirection: "row", alignItems: "center", gap: 4 },
+  flag: { color: palette.muted, fontSize: 16, lineHeight: 18, includeFontPadding: false },
+  flagOn: { color: "#B42318" },
+  reported: { color: "#B42318", fontSize: 12, fontWeight: "700" },
+  dim: { flex: 1, backgroundColor: "rgba(40,32,36,0.45)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22 },
+  sheetTitle: { fontSize: 22, fontWeight: "800", textAlign: "center", color: palette.text },
+  sheetBody: { marginTop: 8, marginBottom: 8, textAlign: "center", color: palette.muted, lineHeight: 20 },
+  reasonList: { maxHeight: 220 },
+  reasonListShort: { maxHeight: 96 },
+  reason: { minHeight: 48, borderRadius: 14, borderWidth: 1.5, borderColor: "transparent", backgroundColor: palette.background, alignItems: "center", justifyContent: "center", marginTop: 8 },
+  reasonOn: { backgroundColor: "#E4D7FB", borderColor: "#7A5C78" },
+  reasonText: { fontWeight: "700", color: palette.text },
+  reasonTextOn: { color: "#7A5C78" },
+  reportInput: { marginTop: 8, backgroundColor: palette.background, borderRadius: 14, borderWidth: 1.5, borderColor: "#C4B5E8", minHeight: 48, maxHeight: 96, paddingHorizontal: 14, paddingVertical: 12, color: palette.text },
+  picked: { marginTop: 10, textAlign: "center", fontSize: 16, lineHeight: 22, fontWeight: "800", color: palette.text },
+  sheetError: { marginTop: 8, textAlign: "center", color: "#B42318" },
+  withdraw: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: "#B42318", alignItems: "center", justifyContent: "center", marginTop: 14 },
+  withdrawText: { color: "#B42318", fontWeight: "800" },
+  cancel: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 4 },
+  cancelText: { fontWeight: "700", color: palette.muted },
   error: { color: "#B42318", marginBottom: 8 },
   composer: { paddingHorizontal: 20, paddingBottom: 12, gap: 8, backgroundColor: palette.background },
-  input: { backgroundColor: "#fff", borderRadius: 14, minHeight: 48, paddingHorizontal: 14, color: palette.text },
+  input: { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1.5, borderColor: "#C4B5E8", minHeight: 72, maxHeight: 120, paddingHorizontal: 14, paddingVertical: 12, color: palette.text },
   send: { backgroundColor: palette.yellow, borderRadius: 14, minHeight: 46, alignItems: "center", justifyContent: "center" },
   sendText: { fontWeight: "800", color: palette.text },
 });

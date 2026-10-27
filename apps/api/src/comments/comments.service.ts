@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { CommentInput, ListQuery, ReportInput } from "@splitmind/contract";
 import { AuthUser } from "../common/auth.guard";
-import { authorAlias, decodeOffset, encodeOffset } from "../common/ids";
+import { decodeOffset, encodeOffset } from "../common/ids";
 import { apiError } from "../common/http";
 import { PrismaService } from "../prisma/prisma.service";
 import { QuestionsService } from "../questions/questions.service";
@@ -23,12 +23,14 @@ export class CommentsService {
       skip: offset,
       take: query.limit,
       include: {
+        user: { select: { nickname: true } },
         _count: { select: { likes: true } },
         likes: { where: { userId: user.id }, select: { id: true } },
+        reports: { where: { userId: user.id }, select: { reason: true } },
       },
     });
     return {
-      items: rows.map((row) => this.toDto(row, questionId)),
+      items: rows.map((row) => this.toDto(row)),
       nextCursor: rows.length === query.limit ? encodeOffset(offset + rows.length) : null,
     };
   }
@@ -46,11 +48,13 @@ export class CommentsService {
         choiceIndex: input.choiceIndex,
       },
       include: {
+        user: { select: { nickname: true } },
         _count: { select: { likes: true } },
         likes: { where: { userId: user.id }, select: { id: true } },
+        reports: { where: { userId: user.id }, select: { reason: true } },
       },
     });
-    return this.toDto(row, questionId);
+    return this.toDto(row);
   }
 
   async remove(id: string, user: AuthUser) {
@@ -91,6 +95,12 @@ export class CommentsService {
     return { ok: true };
   }
 
+  async withdrawReport(id: string, user: AuthUser) {
+    await this.visible(id, user);
+    await this.prisma.commentReport.deleteMany({ where: { commentId: id, userId: user.id } });
+    return { ok: true };
+  }
+
   private async visible(id: string, user: AuthUser) {
     const comment = await this.prisma.comment.findUnique({ where: { id } });
     if (!comment || comment.deletedAt) apiError(HttpStatus.NOT_FOUND, "NOT_FOUND", "댓글을 찾을 수 없습니다.");
@@ -102,32 +112,34 @@ export class CommentsService {
     const row = await this.prisma.comment.findUniqueOrThrow({
       where: { id },
       include: {
+        user: { select: { nickname: true } },
         _count: { select: { likes: true } },
         likes: { where: { userId }, select: { id: true } },
+        reports: { where: { userId }, select: { reason: true } },
       },
     });
-    return this.toDto(row, questionId);
+    return this.toDto(row);
   }
 
-  private toDto(
-    row: {
-      id: string;
-      userId: string;
-      content: string;
-      choiceIndex: number | null;
-      createdAt: Date;
-      _count: { likes: number };
-      likes: { id: string }[];
-    },
-    questionId: string,
-  ) {
+  private toDto(row: {
+    id: string;
+    content: string;
+    choiceIndex: number | null;
+    createdAt: Date;
+    user: { nickname: string | null };
+    _count: { likes: number };
+    likes: { id: string }[];
+    reports: { reason: string }[];
+  }) {
     return {
       id: row.id,
-      alias: authorAlias(row.userId, questionId),
+      nickname: row.user.nickname ?? "이름 없음",
       content: row.content,
       choiceIndex: row.choiceIndex,
       likeCount: row._count.likes,
       likedByMe: row.likes.length > 0,
+      reportedByMe: row.reports.length > 0,
+      reportReason: row.reports[0]?.reason ?? null,
       createdAt: row.createdAt.toISOString(),
     };
   }

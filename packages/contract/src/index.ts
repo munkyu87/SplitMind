@@ -33,6 +33,10 @@ export const devLoginSchema = z.object({
   nickname: z.string().trim().min(1).max(50).optional(),
 });
 
+export const profileSchema = z.object({
+  nickname: z.string().trim().min(2, "닉네임은 2자부터입니다.").max(10, "닉네임은 10자까지입니다."),
+});
+
 export const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
@@ -83,6 +87,14 @@ export const listQuerySchema = z.object({
     .optional()
     .transform((value) => value || undefined),
   sort: sortSchema.optional().default("latest"),
+  unanswered: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+  answered: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
   q: z
     .string()
     .trim()
@@ -99,6 +111,8 @@ export const listQuerySchema = z.object({
 export const userSchema = z.object({
   id: z.string().uuid(),
   provider: providerSchema,
+  nickname: z.string().nullable(),
+  createdAt: z.string(),
   isAdmin: z.boolean(),
   isAdult: z.boolean(),
 });
@@ -138,6 +152,7 @@ export type Provider = z.infer<typeof providerSchema>;
 export type Sort = z.infer<typeof sortSchema>;
 export type SocialLoginInput = z.infer<typeof socialLoginSchema>;
 export type DevLoginInput = z.infer<typeof devLoginSchema>;
+export type ProfileInput = z.infer<typeof profileSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type AnswerInput = z.infer<typeof answerSchema>;
 export type CommentInput = z.infer<typeof commentSchema>;

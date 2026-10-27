@@ -73,7 +73,6 @@ const QuestionSelectScreen = () => {
           </View>
         ) : null}
         <Text style={styles.title}>{question.title}</Text>
-        <Text style={styles.help}>고르면 사람들이 어떻게 갈렸는지 보여요.</Text>
         {user?.isAdmin ? (
           <Pressable
             onPress={() =>
@@ -118,7 +117,6 @@ const QuestionSelectScreen = () => {
             </Pressable>
           );
         })}
-        <Text style={styles.note}>한 번 고르면 바꿀 수 없습니다.</Text>
       </ScrollView>
       <Modal visible={picked != null} transparent animationType="slide" onRequestClose={() => setPicked(null)}>
         <Pressable style={styles.dim} onPress={() => setPicked(null)}>
@@ -147,15 +145,13 @@ const styles = StyleSheet.create({
   back: { paddingHorizontal: 20, paddingVertical: 4 },
   backText: { fontSize: 32, lineHeight: 32, color: palette.text },
   content: { paddingHorizontal: 20, paddingBottom: 40 },
-  title: { marginTop: 16, fontSize: 28, lineHeight: 36, fontWeight: "800", textAlign: "center", color: palette.text },
-  help: { marginTop: 8, marginBottom: 18, textAlign: "center", color: palette.muted },
+  title: { marginTop: 16, marginBottom: 18, fontSize: 28, lineHeight: 36, fontWeight: "800", textAlign: "center", color: palette.text },
   card: { borderRadius: 18, overflow: "hidden", marginBottom: 12, flexDirection: "row" },
   edge: { width: 6 },
   cardMain: { flex: 1 },
   image: { width: "100%", height: 140 },
   cardBody: { flex: 1, minHeight: 72, paddingHorizontal: 16, paddingVertical: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   choice: { flex: 1, fontSize: 18, fontWeight: "800", color: palette.text },
-  note: { textAlign: "center", color: palette.muted, marginTop: 8 },
   archive: { textAlign: "center", color: palette.muted, marginBottom: 12, fontWeight: "700" },
   dim: { flex: 1, backgroundColor: "rgba(40,32,36,0.45)", justifyContent: "flex-end" },
   sheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22 },

@@ -1,6 +1,8 @@
 export type PublicUser = {
   id: string;
   provider: "kakao" | "naver" | "google";
+  nickname: string | null;
+  createdAt: string;
   isAdmin: boolean;
   isAdult: boolean;
 };
@@ -57,11 +59,13 @@ export type QuestionResult = {
 
 export type Comment = {
   id: string;
-  alias: string;
+  nickname: string;
   content: string;
   choiceIndex: number | null;
   likeCount: number;
   likedByMe: boolean;
+  reportedByMe: boolean;
+  reportReason: string | null;
   createdAt: string;
 };
 

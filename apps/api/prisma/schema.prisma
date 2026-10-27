@@ -44,7 +44,7 @@ model User {
   id                 String              @id @default(uuid()) @db.Uuid
   provider           AuthProvider
   providerId         String              @map("provider_id")
-  nickname           String?             @db.VarChar(50)
+  nickname           String?             @unique @db.VarChar(50)
   isAdult            Boolean             @default(false) @map("is_adult")
   isAdmin            Boolean             @default(false) @map("is_admin")
   termsAgreedAt      DateTime?           @map("terms_agreed_at")

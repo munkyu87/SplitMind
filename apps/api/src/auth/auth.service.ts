@@ -3,8 +3,10 @@ import { JwtService } from "@nestjs/jwt";
 import { User } from "@prisma/client";
 import { DevLoginInput, Provider, PublicUser, SocialLoginInput } from "@splitmind/contract";
 import { createHash, randomBytes } from "crypto";
+import { Prisma } from "@prisma/client";
 import { apiError } from "../common/http";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomNickname } from "./nicknames";
 
 const REFRESH_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -17,15 +19,7 @@ export class AuthService {
 
   async socialLogin(input: SocialLoginInput) {
     const profile = await this.verifyProvider(input.provider, input.token);
-    const user = await this.prisma.user.upsert({
-      where: { provider_providerId: { provider: input.provider, providerId: profile.providerId } },
-      update: {},
-      create: {
-        provider: input.provider,
-        providerId: profile.providerId,
-        nickname: profile.nickname,
-      },
-    });
+    const user = await this.findOrCreate(input.provider, profile.providerId);
     return this.issue(await this.stampTerms(user));
   }
 
@@ -33,16 +27,13 @@ export class AuthService {
     if (process.env.ALLOW_DEV_LOGIN !== "true") {
       apiError(HttpStatus.NOT_FOUND, "NOT_FOUND", "개발용 로그인을 사용할 수 없습니다.");
     }
-    const user = await this.prisma.user.upsert({
-      where: { provider_providerId: { provider: input.provider, providerId: input.providerId } },
-      update: {},
-      create: {
-        provider: input.provider,
-        providerId: input.providerId,
-        nickname: input.nickname,
-      },
-    });
+    const user = await this.findOrCreate(input.provider, input.providerId);
     return this.issue(await this.stampTerms(user));
+  }
+
+  async ensureNickname(user: User) {
+    if (user.nickname || user.deletedAt) return user;
+    return this.claimNickname(user.id);
   }
 
   async refresh(refreshToken: string) {
@@ -87,6 +78,8 @@ export class AuthService {
     return {
       id: user.id,
       provider: user.provider,
+      nickname: user.nickname,
+      createdAt: user.createdAt.toISOString(),
       isAdmin: user.isAdmin,
       isAdult: user.isAdult,
     };
@@ -115,6 +108,46 @@ export class AuthService {
         },
       }),
     ]);
+  }
+
+  private async findOrCreate(provider: Provider, providerId: string) {
+    const existing = await this.prisma.user.findUnique({
+      where: { provider_providerId: { provider, providerId } },
+    });
+    if (existing) return this.ensureNickname(existing);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      try {
+        return await this.prisma.user.create({
+          data: { provider, providerId, nickname: randomNickname() },
+        });
+      } catch (err) {
+        const target = uniqueTarget(err);
+        if (target?.includes("provider_id")) {
+          const row = await this.prisma.user.findUnique({
+            where: { provider_providerId: { provider, providerId } },
+          });
+          if (row) return this.ensureNickname(row);
+        }
+        if (target?.includes("nickname")) continue;
+        throw err;
+      }
+    }
+    apiError(HttpStatus.CONFLICT, "NICKNAME_TAKEN", "닉네임을 만들지 못했습니다.");
+  }
+
+  private async claimNickname(userId: string) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      try {
+        return await this.prisma.user.update({
+          where: { id: userId },
+          data: { nickname: randomNickname() },
+        });
+      } catch (err) {
+        if (uniqueTarget(err)?.includes("nickname")) continue;
+        throw err;
+      }
+    }
+    apiError(HttpStatus.CONFLICT, "NICKNAME_TAKEN", "닉네임을 만들지 못했습니다.");
   }
 
   private async stampTerms(user: User) {
@@ -153,4 +186,12 @@ export class AuthService {
     }
     return (await response.json()) as Record<string, any>;
   }
+}
+
+function uniqueTarget(err: unknown) {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    const target = err.meta?.target;
+    return Array.isArray(target) ? target.join(",") : String(target ?? "");
+  }
+  return null;
 }

@@ -12,6 +12,15 @@ export function LogoMark({ size = 18 }: { size?: number }) {
   );
 }
 
+export function ScreenTitle({ name }: { name: string }) {
+  return (
+    <View style={styles.screenTitle}>
+      <LogoMark />
+      <Text style={styles.screenTitleText}>{name}</Text>
+    </View>
+  );
+}
+
 export function Screen({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
   const insets = useSafeAreaInsets();
   return (
@@ -49,6 +58,8 @@ export function YellowButton({
 }
 
 const styles = StyleSheet.create({
+  screenTitle: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12 },
+  screenTitleText: { fontSize: 22, fontWeight: "800", color: palette.text },
   screen: { flex: 1, backgroundColor: palette.background },
   blob: { position: "absolute", width: 180, height: 180, borderRadius: 90, opacity: 0.55 },
   blobLeft: { top: -40, left: -70, backgroundColor: "#E6DDF8" },
