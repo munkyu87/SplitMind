@@ -41,6 +41,9 @@ export type Choice = {
 export type QuestionDetail = {
   id: string;
   title: string;
+  description: string | null;
+  publishedAt: string | null;
+  imageUrl: string | null;
   categories: Category[];
   choices: Choice[];
   answered: boolean;
@@ -67,12 +70,15 @@ export type Comment = {
   reportedByMe: boolean;
   reportReason: string | null;
   createdAt: string;
+  replies?: Comment[];
 };
 
 export type Suggestion = {
   id: string;
   title: string;
+  description: string | null;
   status: "pending" | "approved" | "rejected";
+  imageUrl: string | null;
   choices: { content: string; imageUrl?: string }[];
   reviewReason: string | null;
   questionId: string | null;

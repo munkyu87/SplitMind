@@ -18,15 +18,17 @@ export class CommentsService {
     const offset = decodeOffset(query.cursor);
     if (offset < 0) apiError(HttpStatus.BAD_REQUEST, "INVALID_CURSOR", "커서가 올바르지 않습니다.");
     const rows = await this.prisma.comment.findMany({
-      where: { questionId, deletedAt: null },
+      where: { questionId, deletedAt: null, parentId: null },
       orderBy: { createdAt: "desc" },
       skip: offset,
       take: query.limit,
       include: {
-        user: { select: { nickname: true } },
-        _count: { select: { likes: true } },
-        likes: { where: { userId: user.id }, select: { id: true } },
-        reports: { where: { userId: user.id }, select: { reason: true } },
+        ...this.viewerInclude(user.id),
+        replies: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: "asc" },
+          include: this.viewerInclude(user.id),
+        },
       },
     });
     return {
@@ -40,19 +42,16 @@ export class CommentsService {
     if (input.choiceIndex != null && !question.choices.some((choice) => choice.choiceIndex === input.choiceIndex)) {
       apiError(HttpStatus.BAD_REQUEST, "INVALID_CHOICE", "선택지가 올바르지 않습니다.");
     }
+    const parentId = await this.replyParent(questionId, input.parentId);
     const row = await this.prisma.comment.create({
       data: {
         questionId,
         userId: user.id,
+        parentId,
         content: input.content,
         choiceIndex: input.choiceIndex,
       },
-      include: {
-        user: { select: { nickname: true } },
-        _count: { select: { likes: true } },
-        likes: { where: { userId: user.id }, select: { id: true } },
-        reports: { where: { userId: user.id }, select: { reason: true } },
-      },
+      include: this.viewerInclude(user.id),
     });
     return this.toDto(row);
   }
@@ -108,29 +107,33 @@ export class CommentsService {
     return comment;
   }
 
+  private viewerInclude(userId: string) {
+    return {
+      user: { select: { nickname: true } },
+      _count: { select: { likes: true } },
+      likes: { where: { userId }, select: { id: true } },
+      reports: { where: { userId }, select: { reason: true } },
+    };
+  }
+
+  private async replyParent(questionId: string, parentId?: string) {
+    if (!parentId) return null;
+    const parent = await this.prisma.comment.findUnique({ where: { id: parentId } });
+    if (!parent || parent.deletedAt || parent.questionId !== questionId) {
+      apiError(HttpStatus.BAD_REQUEST, "INVALID_PARENT", "답글을 달 댓글을 찾을 수 없습니다.");
+    }
+    return parent.parentId ?? parent.id;
+  }
+
   private async reload(id: string, questionId: string, userId: string) {
     const row = await this.prisma.comment.findUniqueOrThrow({
       where: { id },
-      include: {
-        user: { select: { nickname: true } },
-        _count: { select: { likes: true } },
-        likes: { where: { userId }, select: { id: true } },
-        reports: { where: { userId }, select: { reason: true } },
-      },
+      include: this.viewerInclude(userId),
     });
     return this.toDto(row);
   }
 
-  private toDto(row: {
-    id: string;
-    content: string;
-    choiceIndex: number | null;
-    createdAt: Date;
-    user: { nickname: string | null };
-    _count: { likes: number };
-    likes: { id: string }[];
-    reports: { reason: string }[];
-  }) {
+  private toDto(row: CommentRow): CommentDto {
     return {
       id: row.id,
       nickname: row.user.nickname ?? "이름 없음",
@@ -141,6 +144,32 @@ export class CommentsService {
       reportedByMe: row.reports.length > 0,
       reportReason: row.reports[0]?.reason ?? null,
       createdAt: row.createdAt.toISOString(),
+      replies: (row.replies ?? []).map((reply) => ({ ...this.toDto(reply), replies: [] })),
     };
   }
 }
+
+type CommentRow = {
+  id: string;
+  content: string;
+  choiceIndex: number | null;
+  createdAt: Date;
+  user: { nickname: string | null };
+  _count: { likes: number };
+  likes: { id: string }[];
+  reports: { reason: string }[];
+  replies?: CommentRow[];
+};
+
+type CommentDto = {
+  id: string;
+  nickname: string;
+  content: string;
+  choiceIndex: number | null;
+  likeCount: number;
+  likedByMe: boolean;
+  reportedByMe: boolean;
+  reportReason: string | null;
+  createdAt: string;
+  replies: CommentDto[];
+};

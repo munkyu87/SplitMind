@@ -18,7 +18,9 @@ export class SuggestionsService {
       data: {
         userId: user.id,
         title: input.title,
+        description: input.description,
         categoryId: input.categoryId,
+        imageUrl: input.imageUrl,
         choices: input.choices,
         origin: "user",
       },
@@ -54,8 +56,10 @@ export class SuggestionsService {
   toDto(row: {
     id: string;
     title: string;
+    description: string | null;
     status: "pending" | "approved" | "rejected";
     origin: "user" | "ai";
+    imageUrl: string | null;
     choices: unknown;
     reviewReason: string | null;
     questionId: string | null;
@@ -66,8 +70,10 @@ export class SuggestionsService {
     return {
       id: row.id,
       title: row.title,
+      description: row.description,
       status: row.status,
       origin: row.origin,
+      imageUrl: row.imageUrl,
       choices: this.parseChoices(row.choices),
       reviewReason: row.reviewReason,
       questionId: row.questionId,

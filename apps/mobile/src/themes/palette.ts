@@ -29,8 +29,23 @@ const tones: Record<string, CategoryTone> = {
   society: { label: "#2F6F6A", a: "#D4EBE8", b: "#E7F3F0", edgeA: "#7FB0AA", edgeB: "#B7D4CE" },
 };
 
+export type ChipTone = { ink: string; wash: string };
+
+const chips: Record<string, ChipTone> = {
+  love: { ink: "#E989A4", wash: "#FDE8EF" },
+  friendship: { ink: "#5E7D5C", wash: "#E7F3E4" },
+  work: { ink: "#4C78C4", wash: "#E7F1FC" },
+  daily: { ink: "#C6A15A", wash: "#FBF3E4" },
+  moral: { ink: "#8E8E93", wash: "#F2F2F4" },
+  society: { ink: "#5A9A96", wash: "#E5F5F4" },
+};
+
 export function toneFor(slug?: string): CategoryTone {
   return tones[slug ?? ""] ?? tones.daily;
+}
+
+export function chipTone(slug?: string): ChipTone {
+  return chips[slug ?? ""] ?? { ink: "#8E8E93", wash: "#F2F2F4" };
 }
 
 export function formatDate(iso: string) {

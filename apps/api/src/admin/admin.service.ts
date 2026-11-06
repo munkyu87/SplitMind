@@ -44,9 +44,12 @@ export class AdminService implements OnModuleInit, OnModuleDestroy {
         apiError(HttpStatus.CONFLICT, "NOT_PENDING", "대기 중인 제안만 승인할 수 있습니다.");
       }
       const choices = this.suggestions.parseChoices(suggestion.choices);
+      const imageUrl = suggestion.imageUrl ?? choices.find((choice) => choice.imageUrl)?.imageUrl ?? null;
       const question = await tx.question.create({
         data: {
           title: suggestion.title,
+          description: suggestion.description,
+          imageUrl,
           source: suggestion.origin === "ai" ? "ai" : "user",
           suggestedBy: suggestion.userId,
           status: "published",
@@ -55,7 +58,6 @@ export class AdminService implements OnModuleInit, OnModuleDestroy {
             create: choices.map((choice, index) => ({
               choiceIndex: index,
               content: choice.content,
-              imageUrl: choice.imageUrl,
             })),
           },
           categories: { create: [{ categoryId: suggestion.categoryId }] },
@@ -200,7 +202,7 @@ export class AdminService implements OnModuleInit, OnModuleDestroy {
     const suggestion = await this.prisma.suggestedQuestion.create({
       data: {
         userId,
-        title: parsed.title.trim().slice(0, 500),
+        title: parsed.title.trim().slice(0, 50),
         categoryId: category.id,
         choices,
         origin: "ai",

@@ -9,17 +9,18 @@ export const cadenceSchema = z.enum(["manual", "daily", "weekly"]);
 
 const halfStep = (value: number) => Math.abs(value * 2 - Math.round(value * 2)) < 1e-6;
 
+const mediaUrlSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .refine(
+    (value) => /^\/v1\/media\/[A-Za-z0-9._-]+$/.test(value) || /^https?:\/\//.test(value),
+    "이미지 주소가 올바르지 않습니다.",
+  );
+
 export const choiceInputSchema = z.object({
   content: z.string().trim().min(1).max(255),
-  imageUrl: z
-    .string()
-    .trim()
-    .max(500)
-    .refine(
-      (value) => /^\/v1\/media\/[A-Za-z0-9._-]+$/.test(value) || /^https?:\/\//.test(value),
-      "이미지 주소가 올바르지 않습니다.",
-    )
-    .optional(),
+  imageUrl: mediaUrlSchema.optional(),
 });
 
 export const socialLoginSchema = z.object({
@@ -48,6 +49,7 @@ export const answerSchema = z.object({
 export const commentSchema = z.object({
   content: z.string().trim().min(1).max(500),
   choiceIndex: z.number().int().min(0).max(3).optional(),
+  parentId: z.string().uuid().optional(),
 });
 
 export const ratingSchema = z.object({
@@ -55,8 +57,15 @@ export const ratingSchema = z.object({
 });
 
 export const suggestionSchema = z.object({
-  title: z.string().trim().min(1).max(500),
+  title: z.string().trim().min(1).max(50),
+  description: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .transform((value) => value || undefined),
   categoryId: z.string().uuid(),
+  imageUrl: mediaUrlSchema.optional(),
   choices: z.array(choiceInputSchema).min(2).max(4),
 });
 

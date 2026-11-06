@@ -7,17 +7,20 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const QuestionSelectScreen = () => {
   const { questionId } = useRoute<RouteProp<QuestionListStackParamList, "QuestionSelect">>().params;
   const navigation = useNavigation<NativeStackNavigationProp<QuestionListStackParamList>>();
-  const { request, user } = useSession();
+  const { request } = useSession();
+  const insets = useSafeAreaInsets();
   const client = useQueryClient();
   const [picked, setPicked] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [archiving, setArchiving] = useState(false);
+  const [slot, setSlot] = useState({ width: 0, height: 0 });
+  const [ratio, setRatio] = useState<number | null>(null);
 
   const detail = useQuery({
     queryKey: ["question", questionId],
@@ -60,78 +63,108 @@ const QuestionSelectScreen = () => {
   }
 
   const pickedChoice = question.choices.find((choice) => choice.choiceIndex === picked);
+  const image = question.imageUrl ?? question.choices.find((choice) => choice.imageUrl)?.imageUrl ?? null;
+  const paints = [
+    { fill: tone.a, edge: tone.edgeA },
+    { fill: "#F8D5E0", edge: "#E7A8B8" },
+    { fill: "#FBF3E4", edge: "#D4C4A8" },
+    { fill: "#E5F3E4", edge: "#9BB89A" },
+  ];
+  const rows =
+    question.choices.length >= 4
+      ? [question.choices.slice(0, 2), question.choices.slice(2)]
+      : question.choices.map((choice) => [choice]);
 
   return (
     <Screen>
-      <Pressable onPress={() => navigation.goBack()} style={styles.back}>
-        <Text style={styles.backText}>‹</Text>
-      </Pressable>
-      <ScrollView contentContainerStyle={styles.content}>
-        {category ? (
-          <View style={{ alignItems: "center" }}>
-            <CategoryPill slug={category.slug} name={category.name} />
+      <View style={styles.top}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.back}>
+          <Text style={styles.backText}>‹</Text>
+        </Pressable>
+        {category ? <CategoryPill slug={category.slug} name={category.name} look="soft" compact /> : <View />}
+        <View style={styles.backSpace} />
+      </View>
+      <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}>
+      <Text style={styles.title}>{question.title}</Text>
+        {question.description ? (
+          <View style={styles.story}>
+            <Text style={styles.storyLabel}>상황 설명</Text>
+            <Text style={styles.storyBody}>{question.description}</Text>
           </View>
         ) : null}
-        <Text style={styles.title}>{question.title}</Text>
-        {user?.isAdmin ? (
-          <Pressable
-            onPress={() =>
-              Alert.alert("이 질문을 비공개로 둘까요?", "목록에서 내려갑니다.", [
-                { text: "취소", style: "cancel" },
-                {
-                  text: "비공개",
-                  style: "destructive",
-                  onPress: async () => {
-                    setArchiving(true);
-                    try {
-                      await request(`/admin/questions/${questionId}/archive`, { method: "POST" });
-                      await client.invalidateQueries({ queryKey: ["questions"] });
-                      navigation.popToTop();
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : "비공개로 바꾸지 못했습니다.");
-                    } finally {
-                      setArchiving(false);
-                    }
-                  },
-                },
-              ])
-            }
-            disabled={archiving}
-          >
-            <Text style={styles.archive}>{archiving ? "처리 중" : "이 질문 비공개"}</Text>
-          </Pressable>
-        ) : null}
-        {question.choices.map((choice, index) => {
-          const fill = index % 2 === 0 ? tone.a : tone.b;
-          const edge = index % 2 === 0 ? tone.edgeA : tone.edgeB;
-          return (
-            <Pressable key={choice.choiceIndex} style={[styles.card, { backgroundColor: fill }]} onPress={() => setPicked(choice.choiceIndex)}>
-              <View style={[styles.edge, { backgroundColor: edge }]} />
-              <View style={styles.cardMain}>
-                {choice.imageUrl ? <Image source={{ uri: mediaUri(choice.imageUrl) }} style={styles.image} /> : null}
-                <View style={styles.cardBody}>
-                  <Text style={styles.choice}>{choice.content}</Text>
-                  <Text style={{ color: tone.label, fontSize: 18 }}>›</Text>
-                </View>
+        {image ? (
+          <View style={styles.photoSlot} onLayout={(event) => setSlot(event.nativeEvent.layout)}>
+            {ratio && slot.width > 0 ? (
+              <View style={[styles.photoClip, photoBox(slot.width, ratio)]}>
+                <Image
+                  source={{ uri: mediaUri(image) }}
+                  resizeMode="cover"
+                  style={StyleSheet.absoluteFill}
+                  onLoad={(event) => {
+                    const next = event.nativeEvent.source.width / event.nativeEvent.source.height;
+                    if (next > 0) setRatio(next);
+                  }}
+                />
               </View>
-            </Pressable>
-          );
-        })}
+            ) : (
+              <Image
+                source={{ uri: mediaUri(image) }}
+                style={styles.photoProbe}
+                onLoad={(event) => {
+                  const next = event.nativeEvent.source.width / event.nativeEvent.source.height;
+                  if (next > 0) setRatio(next);
+                }}
+              />
+            )}
+          </View>
+        ) : null}
+        {question.description ? <Text style={styles.pickLabel}>당신의 선택은?</Text> : null}
+        <View style={styles.choices}>
+          {rows.map((row) => (
+            <View key={row.map((choice) => choice.choiceIndex).join("-")} style={styles.choiceRow}>
+              {row.map((choice) => {
+                const paint = paints[choice.choiceIndex] ?? paints[0];
+                const wide = row.length === 1;
+                return (
+                  <Pressable
+                    key={choice.choiceIndex}
+                    style={[styles.card, wide ? styles.cardWide : styles.cardCell, { backgroundColor: paint.fill }]}
+                    onPress={() => setPicked(choice.choiceIndex)}
+                  >
+                    <View style={[styles.edge, { backgroundColor: paint.edge }]} />
+                    <Text style={[styles.choice, !wide && styles.choiceCell]}>{choice.content}</Text>
+                    <Text style={styles.chevron}>›</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </View>
       </ScrollView>
       <Modal visible={picked != null} transparent animationType="slide" onRequestClose={() => setPicked(null)}>
         <Pressable style={styles.dim} onPress={() => setPicked(null)}>
           <Pressable style={styles.sheet}>
-            <Text style={styles.sheetTitle}>{pickedChoice?.content}</Text>
-            <Text style={styles.sheetBody}>한 번 고르면 바꿀 수 없습니다.</Text>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <View style={styles.sheetRow}>
-              <Pressable style={styles.ghost} onPress={() => setPicked(null)}>
-                <Text style={styles.ghostText}>다시 고르기</Text>
-              </Pressable>
-              <Pressable style={styles.submit} onPress={submit} disabled={busy}>
-                <Text style={styles.submitText}>{busy ? "제출 중" : "제출"}</Text>
-              </Pressable>
+            <View style={styles.plane}>
+              <Text style={styles.planeMark}>✈</Text>
             </View>
+            <Text style={styles.sheetTitle}>이렇게 선택하시겠어요?</Text>
+            <Text style={styles.sheetBody}>한 번 고르면 바꿀 수 없습니다.</Text>
+            {pickedChoice ? (
+              <View style={[styles.pickedCard, { backgroundColor: (paints[pickedChoice.choiceIndex] ?? paints[0]).fill }]}>
+                <View style={[styles.edge, { backgroundColor: (paints[pickedChoice.choiceIndex] ?? paints[0]).edge }]} />
+                <Text style={styles.pickedText}>{pickedChoice.content}</Text>
+              </View>
+            ) : null}
+            <View style={styles.warn}>
+              <Text style={styles.warnText}>제출하면 다른 선택으로 변경할 수 없어요.{"\n"}신중하게 선택해 주세요.</Text>
+            </View>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <Pressable style={styles.submit} onPress={submit} disabled={busy}>
+              <Text style={styles.submitText}>{busy ? "제출 중" : "제출하기"}</Text>
+            </Pressable>
+            <Pressable style={styles.ghost} onPress={() => setPicked(null)}>
+              <Text style={styles.ghostText}>다시 고르기</Text>
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
@@ -139,28 +172,55 @@ const QuestionSelectScreen = () => {
   );
 };
 
+function photoBox(slotWidth: number, ratio: number) {
+  let height = Dimensions.get("window").height * 0.42;
+  let width = height * ratio;
+  const maxWidth = slotWidth * 0.92;
+  if (width > maxWidth) {
+    width = maxWidth;
+    height = width / ratio;
+  }
+  return { width, height };
+}
+
 export default QuestionSelectScreen;
 
 const styles = StyleSheet.create({
-  back: { paddingHorizontal: 20, paddingVertical: 4 },
+  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8, minHeight: 40 },
+  back: { width: 44, height: 40, alignItems: "center", justifyContent: "center" },
   backText: { fontSize: 32, lineHeight: 32, color: palette.text },
-  content: { paddingHorizontal: 20, paddingBottom: 40 },
-  title: { marginTop: 16, marginBottom: 18, fontSize: 28, lineHeight: 36, fontWeight: "800", textAlign: "center", color: palette.text },
-  card: { borderRadius: 18, overflow: "hidden", marginBottom: 12, flexDirection: "row" },
-  edge: { width: 6 },
-  cardMain: { flex: 1 },
-  image: { width: "100%", height: 140 },
-  cardBody: { flex: 1, minHeight: 72, paddingHorizontal: 16, paddingVertical: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  choice: { flex: 1, fontSize: 18, fontWeight: "800", color: palette.text },
-  archive: { textAlign: "center", color: palette.muted, marginBottom: 12, fontWeight: "700" },
+  backSpace: { width: 44 },
+  scroll: { flex: 1 },
+  title: { marginTop: 4, marginBottom: 10, paddingHorizontal: 20, fontSize: 26, lineHeight: 32, fontWeight: "800", textAlign: "center", color: palette.text },
+  story: { paddingHorizontal: 20, marginBottom: 16 },
+  storyLabel: { marginBottom: 8, fontSize: 13, fontWeight: "800", color: palette.muted },
+  storyBody: { fontSize: 16, lineHeight: 26, color: palette.text },
+  pickLabel: { marginBottom: 10, paddingHorizontal: 20, fontSize: 16, fontWeight: "800", color: palette.text },
+  photoSlot: { marginHorizontal: 20, marginBottom: 16, alignItems: "center" },
+  photoClip: { borderRadius: 12, overflow: "hidden" },
+  photoProbe: { width: 1, height: 1, opacity: 0 },
+  choices: { paddingHorizontal: 20, gap: 10 },
+  choiceRow: { flexDirection: "row", gap: 10 },
+  card: { borderRadius: 16, overflow: "hidden", flexDirection: "row", alignItems: "center", minHeight: 72, paddingRight: 12 },
+  cardWide: { flex: 1 },
+  cardCell: { flex: 1, minHeight: 88, paddingRight: 8 },
+  edge: { width: 7, alignSelf: "stretch" },
+  choice: { flex: 1, fontSize: 18, fontWeight: "800", color: palette.text, paddingVertical: 16, paddingLeft: 14 },
+  choiceCell: { fontSize: 15, paddingVertical: 14, paddingLeft: 10 },
+  chevron: { fontSize: 18, color: "#3A3A3A", fontWeight: "600", marginLeft: 4 },
   dim: { flex: 1, backgroundColor: "rgba(40,32,36,0.45)", justifyContent: "flex-end" },
   sheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22 },
-  sheetTitle: { fontSize: 22, fontWeight: "800", textAlign: "center", color: palette.text },
-  sheetBody: { marginTop: 8, textAlign: "center", color: palette.muted },
+  plane: { alignSelf: "center", width: 52, height: 52, borderRadius: 26, backgroundColor: "#F3E8F4", alignItems: "center", justifyContent: "center" },
+  planeMark: { fontSize: 22, color: "#7A5C78" },
+  sheetTitle: { marginTop: 12, fontSize: 22, fontWeight: "800", textAlign: "center", color: palette.text },
+  sheetBody: { marginTop: 6, textAlign: "center", color: palette.muted },
+  pickedCard: { marginTop: 16, minHeight: 56, borderRadius: 16, overflow: "hidden", flexDirection: "row", alignItems: "center" },
+  pickedText: { flex: 1, fontSize: 18, fontWeight: "800", color: palette.text, paddingVertical: 14, paddingHorizontal: 14 },
+  warn: { marginTop: 12, borderRadius: 14, backgroundColor: "#FDECEC", paddingHorizontal: 14, paddingVertical: 12 },
+  warnText: { color: "#B42318", fontWeight: "700", textAlign: "center", lineHeight: 20 },
   error: { marginTop: 8, textAlign: "center", color: "#B42318" },
-  sheetRow: { flexDirection: "row", gap: 10, marginTop: 18 },
-  ghost: { flex: 1, minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: palette.line, alignItems: "center", justifyContent: "center" },
+  submit: { marginTop: 14, minHeight: 52, borderRadius: 16, backgroundColor: palette.yellow, alignItems: "center", justifyContent: "center" },
+  submitText: { color: palette.text, fontWeight: "800" },
+  ghost: { marginTop: 8, minHeight: 52, borderRadius: 16, borderWidth: 1, borderColor: palette.line, alignItems: "center", justifyContent: "center" },
   ghostText: { fontWeight: "700", color: palette.text },
-  submit: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: "#7A5C78", alignItems: "center", justifyContent: "center" },
-  submitText: { color: "#fff", fontWeight: "800" },
 });

@@ -40,6 +40,7 @@ export class QuestionsService {
     return {
       id: question.id,
       title: question.title,
+      description: question.description,
       source: question.source,
       publishedAt: question.publishedAt?.toISOString() ?? null,
       categories: question.categories.map((row) => ({
@@ -48,10 +49,11 @@ export class QuestionsService {
         slug: row.category.slug,
         requiresAdult: row.category.requiresAdult,
       })),
+      imageUrl: question.imageUrl ?? question.choices.find((choice) => choice.imageUrl)?.imageUrl ?? null,
       choices: question.choices.map((choice) => ({
         choiceIndex: choice.choiceIndex,
         content: choice.content,
-        imageUrl: choice.imageUrl,
+        imageUrl: null,
       })),
       answered: Boolean(answer),
       myChoiceIndex: answer?.choiceIndex ?? null,

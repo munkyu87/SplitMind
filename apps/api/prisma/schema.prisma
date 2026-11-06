@@ -97,6 +97,8 @@ model Question {
   suggestedBy  String?               @map("suggested_by") @db.Uuid
   status       QuestionStatus        @default(published)
   publishedAt  DateTime?             @map("published_at")
+  description  String?
+  imageUrl     String?               @map("image_url")
   createdAt    DateTime              @default(now()) @map("created_at")
   suggester    User?                 @relation(fields: [suggestedBy], references: [id], onDelete: SetNull)
   choices      QuestionChoice[]
@@ -162,16 +164,20 @@ model Comment {
   id          String          @id @default(uuid()) @db.Uuid
   questionId  String          @map("question_id") @db.Uuid
   userId      String          @map("user_id") @db.Uuid
+  parentId    String?         @map("parent_id") @db.Uuid
   choiceIndex Int?            @map("choice_index")
   content     String
   createdAt   DateTime        @default(now()) @map("created_at")
   deletedAt   DateTime?       @map("deleted_at")
   question    Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent      Comment?        @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Comment[]       @relation("CommentThread")
   likes       CommentLike[]
   reports     CommentReport[]
 
   @@index([questionId, createdAt])
+  @@index([parentId])
   @@map("comments")
 }
 
@@ -204,7 +210,9 @@ model SuggestedQuestion {
   id           String              @id @default(uuid()) @db.Uuid
   userId       String              @map("user_id") @db.Uuid
   title        String
+  description  String?
   categoryId   String              @map("category_id") @db.Uuid
+  imageUrl     String?             @map("image_url")
   choices      Json
   origin       SuggestionOrigin    @default(user)
   status       SuggestionStatus    @default(pending)
